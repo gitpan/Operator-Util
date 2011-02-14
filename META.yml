@@ -1,0 +1,30 @@
+---
+abstract: 'A selection of array and hash functions that extend operators'
+author:
+  - 'Nick Patch <patch@cpan.org>'
+build_requires:
+  Test::More: 0.4
+  ok: 0
+configure_requires:
+  Module::Build: 0.3614
+generated_by: 'Module::Build version 0.3624'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Operator-Util
+provides:
+  Operator::Util:
+    file: lib/Operator/Util.pm
+    version: 0.01
+requires:
+  parent: 0
+  perl: v5.6.0
+resources:
+  bugtracker: http://github.com/patch/operator-util-pm5/issues
+  license: http://dev.perl.org/licenses/
+  repository:
+    type: git
+    url: git://github.com/patch/operator-util-pm5.git
+    web: http://github.com/patch/operator-util-pm5
+version: 0.01
