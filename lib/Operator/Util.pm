@@ -1,11 +1,13 @@
 package Operator::Util;
+
 use 5.006;
 use strict;
 use warnings;
 use parent 'Exporter';
+use List::MoreUtils qw( uniq );
 
-our $VERSION     = '0.02';
-our @EXPORT_OK   = qw(
+our $VERSION   = '0.03';
+our @EXPORT_OK = qw(
     reduce  reducewith
     zip     zipwith
     cross   crosswith
@@ -15,147 +17,152 @@ our @EXPORT_OK   = qw(
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
 *reducewith = \&reduce;
-*zipwith    = \&zip;
-*crosswith  = \&cross;
 *hyperwith  = \&hyper;
+
+# sub: operator subroutines
+# res: responses in an arrayref for when zero or one argument is provided --
+#      the first element is the response for zero args and the second is for
+#      one arg, defaulting to the arg itself
+# chain: set non-chaining Perl 5 operator to chaining-associative
+# right: set operator to right-associative
 
 my %ops = (
     # binary infix
-    'infix:**'  => sub { $_[0] **  $_[1] },
-    'infix:=~'  => sub { $_[0] =~  $_[1] },
-    'infix:!~'  => sub { $_[0] !~  $_[1] },
-    'infix:*'   => sub { $_[0] *   $_[1] },
-    'infix:/'   => sub { $_[0] /   $_[1] },
-    'infix:%'   => sub { $_[0] %   $_[1] },
-    'infix:x'   => sub { $_[0] x   $_[1] },
-    'infix:+'   => sub { $_[0] +   $_[1] },
-    'infix:-'   => sub { $_[0] -   $_[1] },
-    'infix:.'   => sub { $_[0] .   $_[1] },
-    'infix:<<'  => sub { $_[0] <<  $_[1] },
-    'infix:>>'  => sub { $_[0] >>  $_[1] },
-    'infix:<'   => sub { $_[0] <   $_[1] },
-    'infix:>'   => sub { $_[0] >   $_[1] },
-    'infix:<='  => sub { $_[0] <=  $_[1] },
-    'infix:>='  => sub { $_[0] >=  $_[1] },
-    'infix:lt'  => sub { $_[0] lt  $_[1] },
-    'infix:gt'  => sub { $_[0] gt  $_[1] },
-    'infix:le'  => sub { $_[0] le  $_[1] },
-    'infix:ge'  => sub { $_[0] ge  $_[1] },
-    'infix:=='  => sub { $_[0] ==  $_[1] },
-    'infix:!='  => sub { $_[0] !=  $_[1] },
-    'infix:<=>' => sub { $_[0] <=> $_[1] },
-    'infix:eq'  => sub { $_[0] eq  $_[1] },
-    'infix:ne'  => sub { $_[0] ne  $_[1] },
-    'infix:cmp' => sub { $_[0] cmp $_[1] },
-    'infix:&'   => sub { $_[0] &   $_[1] },
-    'infix:|'   => sub { $_[0] |   $_[1] },
-    'infix:^'   => sub { $_[0] ^   $_[1] },
-    'infix:&&'  => sub { $_[0] &&  $_[1] },
-    'infix:||'  => sub { $_[0] ||  $_[1] },
-    'infix:..'  => sub { $_[0] ..  $_[1] },
-    'infix:...' => sub { $_[0] ... $_[1] },
-    'infix:='   => sub { $_[0] =   $_[1] },
-    'infix:**=' => sub { $_[0] **= $_[1] },
-    'infix:*='  => sub { $_[0] *=  $_[1] },
-    'infix:/='  => sub { $_[0] /=  $_[1] },
-    'infix:%='  => sub { $_[0] %=  $_[1] },
-    'infix:x='  => sub { $_[0] x=  $_[1] },
-    'infix:+='  => sub { $_[0] +=  $_[1] },
-    'infix:-='  => sub { $_[0] -=  $_[1] },
-    'infix:.='  => sub { $_[0] .=  $_[1] },
-    'infix:<<=' => sub { $_[0] <<= $_[1] },
-    'infix:>>=' => sub { $_[0] >>= $_[1] },
-    'infix:&='  => sub { $_[0] &=  $_[1] },
-    'infix:|='  => sub { $_[0] |=  $_[1] },
-    'infix:^='  => sub { $_[0] ^=  $_[1] },
-    'infix:&&=' => sub { $_[0] &&= $_[1] },
-    'infix:||=' => sub { $_[0] ||= $_[1] },
-    'infix:,'   => sub { $_[0] ,   $_[1] },
-    'infix:=>'  => sub { $_[0] =>  $_[1] },
-    'infix:and' => sub { $_[0] and $_[1] },
-    'infix:or'  => sub { $_[0] or  $_[1] },
-    'infix:xor' => sub { $_[0] xor $_[1] },
-    'infix:->'  => sub { my $m = $_[1];         $_[0]->$m },
-    'infix:->=' => sub { my $m = $_[1]; $_[0] = $_[0]->$m },
+    'infix:**'  => { sub => sub { $_[0] **  $_[1] }, res => [1], right => 1 },
+    'infix:=~'  => { sub => sub { $_[0] =~  $_[1] }, res => [1, 1] },
+    'infix:!~'  => { sub => sub { $_[0] !~  $_[1] }, res => [1, 1] },
+    'infix:*'   => { sub => sub { $_[0] *   $_[1] }, res => [1] },
+    'infix:/'   => { sub => sub { $_[0] /   $_[1] }, res => [undef] },
+    'infix:%'   => { sub => sub { $_[0] %   $_[1] }, res => [undef] },
+    'infix:x'   => { sub => sub { $_[0] x   $_[1] }, res => [undef] },
+    'infix:+'   => { sub => sub { $_[0] +   $_[1] }, res => [0] },
+    'infix:-'   => { sub => sub { $_[0] -   $_[1] }, res => [0] },
+    'infix:.'   => { sub => sub { $_[0] .   $_[1] }, res => [''] },
+    'infix:<<'  => { sub => sub { $_[0] <<  $_[1] }, res => [undef] },
+    'infix:>>'  => { sub => sub { $_[0] >>  $_[1] }, res => [undef] },
+    'infix:<'   => { sub => sub { $_[0] <   $_[1] }, res => [1, 1], chain => 1 },
+    'infix:>'   => { sub => sub { $_[0] >   $_[1] }, res => [1, 1], chain => 1 },
+    'infix:<='  => { sub => sub { $_[0] <=  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:>='  => { sub => sub { $_[0] >=  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:lt'  => { sub => sub { $_[0] lt  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:gt'  => { sub => sub { $_[0] gt  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:le'  => { sub => sub { $_[0] le  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:ge'  => { sub => sub { $_[0] ge  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:=='  => { sub => sub { $_[0] ==  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:!='  => { sub => sub { $_[0] !=  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:<=>' => { sub => sub { $_[0] <=> $_[1] }, res => [1, 1], chain => 1 },
+    'infix:eq'  => { sub => sub { $_[0] eq  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:ne'  => { sub => sub { $_[0] ne  $_[1] }, res => [1, 1], chain => 1 },
+    'infix:cmp' => { sub => sub { $_[0] cmp $_[1] }, res => [1, 1], chain => 1 },
+    'infix:&'   => { sub => sub { $_[0] &   $_[1] }, res => [-1] },
+    'infix:|'   => { sub => sub { $_[0] |   $_[1] }, res => [0] },
+    'infix:^'   => { sub => sub { $_[0] ^   $_[1] }, res => [0] },
+    'infix:&&'  => { sub => sub { $_[0] &&  $_[1] }, res => [1] },
+    'infix:||'  => { sub => sub { $_[0] ||  $_[1] }, res => [0] },
+    'infix:..'  => { sub => sub { $_[0] ..  $_[1] }, res => [1] },
+    'infix:...' => { sub => sub { $_[0] ... $_[1] }, res => [1] },
+    'infix:='   => { sub => sub { $_[0] =   $_[1] }, res => [undef] },
+    'infix:**=' => { sub => sub { $_[0] **= $_[1] }, res => [undef] },
+    'infix:*='  => { sub => sub { $_[0] *=  $_[1] }, res => [undef] },
+    'infix:/='  => { sub => sub { $_[0] /=  $_[1] }, res => [undef] },
+    'infix:%='  => { sub => sub { $_[0] %=  $_[1] }, res => [undef] },
+    'infix:x='  => { sub => sub { $_[0] x=  $_[1] }, res => [undef] },
+    'infix:+='  => { sub => sub { $_[0] +=  $_[1] }, res => [undef] },
+    'infix:-='  => { sub => sub { $_[0] -=  $_[1] }, res => [undef] },
+    'infix:.='  => { sub => sub { $_[0] .=  $_[1] }, res => [undef] },
+    'infix:<<=' => { sub => sub { $_[0] <<= $_[1] }, res => [undef] },
+    'infix:>>=' => { sub => sub { $_[0] >>= $_[1] }, res => [undef] },
+    'infix:&='  => { sub => sub { $_[0] &=  $_[1] }, res => [undef] },
+    'infix:|='  => { sub => sub { $_[0] |=  $_[1] }, res => [undef] },
+    'infix:^='  => { sub => sub { $_[0] ^=  $_[1] }, res => [undef] },
+    'infix:&&=' => { sub => sub { $_[0] &&= $_[1] }, res => [undef] },
+    'infix:||=' => { sub => sub { $_[0] ||= $_[1] }, res => [undef] },
+    'infix:,'   => { sub => sub { $_[0] ,   $_[1] }, res => [[]] },
+    'infix:=>'  => { sub => sub { $_[0] =>  $_[1] }, res => [[]] },
+    'infix:and' => { sub => sub { $_[0] and $_[1] }, res => [1] },
+    'infix:or'  => { sub => sub { $_[0] or  $_[1] }, res => [0] },
+    'infix:xor' => { sub => sub { $_[0] xor $_[1] }, res => [0] },
+    'infix:->'  => { sub => sub { my $m = $_[1];         $_[0]->$m }, res => [undef] },
+    'infix:->=' => { sub => sub { my $m = $_[1]; $_[0] = $_[0]->$m }, res => [undef] },
 
     # unary prefix
-    'prefix:++' => sub { ++$_[0]  },
-    'prefix:--' => sub { --$_[0]  },
-    'prefix:!'  => sub {  !$_[0]  },
-    'prefix:~'  => sub {  ~$_[0]  },
-    'prefix:\\' => sub {  \$_[0]  },
-    'prefix:+'  => sub {  +$_[0]  },
-    'prefix:-'  => sub {  -$_[0]  },
-    'prefix:$'  => sub { ${$_[0]} },
-    'prefix:@'  => sub { @{$_[0]} },
-    'prefix:%'  => sub { %{$_[0]} },
-    'prefix:&'  => sub { &{$_[0]} },
-    'prefix:*'  => sub { *{$_[0]} },
+    'prefix:++' => { sub => sub { ++$_[0]  } },
+    'prefix:--' => { sub => sub { --$_[0]  } },
+    'prefix:!'  => { sub => sub {  !$_[0]  } },
+    'prefix:~'  => { sub => sub {  ~$_[0]  } },
+    'prefix:\\' => { sub => sub {  \$_[0]  } },
+    'prefix:+'  => { sub => sub {  +$_[0]  } },
+    'prefix:-'  => { sub => sub {  -$_[0]  } },
+    'prefix:$'  => { sub => sub { ${$_[0]} } },
+    'prefix:@'  => { sub => sub { @{$_[0]} } },
+    'prefix:%'  => { sub => sub { %{$_[0]} } },
+    'prefix:&'  => { sub => sub { &{$_[0]} } },
+    'prefix:*'  => { sub => sub { *{$_[0]} } },
 
     # unary postfix
-    'postfix:++' => sub { $_[0]++ },
-    'postfix:--' => sub { $_[0]-- },
+    'postfix:++' => { sub => sub { $_[0]++ } },
+    'postfix:--' => { sub => sub { $_[0]-- } },
 
     # circumfix
-    'circumfix:()'  => sub {  ($_[0]) },
-    'circumfix:[]'  => sub {  [$_[0]] },
-    'circumfix:{}'  => sub {  {$_[0]} },
-    'circumfix:${}' => sub { ${$_[0]} },
-    'circumfix:@{}' => sub { @{$_[0]} },
-    'circumfix:%{}' => sub { %{$_[0]} },
-    'circumfix:&{}' => sub { &{$_[0]} },
-    'circumfix:*{}' => sub { *{$_[0]} },
+    'circumfix:()'  => { sub => sub {  ($_[0]) } },
+    'circumfix:[]'  => { sub => sub {  [$_[0]] } },
+    'circumfix:{}'  => { sub => sub {  {$_[0]} } },
+    'circumfix:${}' => { sub => sub { ${$_[0]} } },
+    'circumfix:@{}' => { sub => sub { @{$_[0]} } },
+    'circumfix:%{}' => { sub => sub { %{$_[0]} } },
+    'circumfix:&{}' => { sub => sub { &{$_[0]} } },
+    'circumfix:*{}' => { sub => sub { *{$_[0]} } },
 
     # postcircumfix
-    'postcircumfix:[]'   => sub { $_[0]->[$_[1]] },
-    'postcircumfix:{}'   => sub { $_[0]->{$_[1]} },
-    'postcircumfix:->[]' => sub { $_[0]->[$_[1]] },
-    'postcircumfix:->{}' => sub { $_[0]->{$_[1]} },
+    'postcircumfix:[]'   => { sub => sub { $_[0]->[$_[1]] }, res => [undef] },
+    'postcircumfix:{}'   => { sub => sub { $_[0]->{$_[1]} }, res => [undef] },
+    'postcircumfix:->[]' => { sub => sub { $_[0]->[$_[1]] }, res => [undef] },
+    'postcircumfix:->{}' => { sub => sub { $_[0]->{$_[1]} }, res => [undef] },
 );
-
-my %rightops = ('infix:**' => 1);
-my %chainops = map { ( "infix:$_" => 1 ) } qw{
-    < > <= >= lt gt le ge == != <=> eq ne cmp ~~
-};
 
 # Perl 5.10 operators
 if ($] >= 5.010) {
-    for my $op ('~~', '//') {
-        $ops{"infix:$op"} = eval "sub { \$_[0] $op \$_[1] }";
-    }
+    $ops{'infix:~~'} = { sub => eval 'sub { $_[0] ~~ $_[1] }', res => [1, 1], chain => 1 };
+    $ops{'infix://'} = { sub => eval 'sub { $_[0] // $_[1] }', res => [0] };
 }
 
 sub reduce {
     my ($op, $list, %args) = @_;
-    my ($type, $trait);
-
-    my @list = ref $list eq 'ARRAY' ? @$list : $list;
-
-    return unless @list;
-    return $list[0] if @list == 1;
-
-    ($op, $type, $trait) = _get_op_info($op);
+    my $type;
+    ($op, $type) = _get_op_info($op);
 
     return unless $op;
     return if $type ne 'infix';
 
-    if ($trait eq 'right') {
+    my @list = ref $list eq 'ARRAY' ? @$list :
+               defined $list        ? $list  :
+                                      ()     ;
+
+    # return default for zero args
+    return $ops{$op}{res}[0]
+        unless @list;
+
+    # return default for one arg if defined, otherwise return the arg itself
+    return exists $ops{$op}{res}[1] ? $ops{$op}{res}[1] : $list[0]
+        if @list == 1;
+
+    if ( $ops{$op}{right} ) {
         @list = reverse @list;
     }
 
     my $result   = shift @list;
     my $bool     = 1;
-    my @triangle = $trait eq 'chain' ? $bool : $result;
+    my @triangle = $ops{$op}{chain} ? $bool : $result;
 
     my $apply = sub {
         my ($a, $b) = @_;
-        return applyop( $op, $trait eq 'right' ? ($b, $a) : ($a, $b) );
+        return applyop( $op, $ops{$op}{right} ? ($b, $a) : ($a, $b) );
     };
 
     while (@list) {
         my $next = shift @list;
 
-        if ($trait eq 'chain') {
+        if ( $ops{$op}{chain} ) {
             $bool = $bool && $apply->($result, $next);
             $result = $next;
             push @triangle, $bool if $args{triangle};
@@ -167,13 +174,15 @@ sub reduce {
     }
 
     return @triangle if $args{triangle};
-    return $bool     if $trait eq 'chain';
+    return $bool     if $ops{$op}{chain};
     return $result;
 }
 
-sub zip {
-    my $op = @_ == 2 ? 'infix:,' : shift;
-    my ($lhs, $rhs) = @_;
+sub zip   { zipwith(   ',', @_ ) }
+sub cross { crosswith( ',', @_ ) }
+
+sub zipwith {
+    my ($op, $lhs, $rhs) = @_;
     my ($a, $b, @results);
 
     $lhs = [$lhs] if ref $lhs ne 'ARRAY';
@@ -188,9 +197,8 @@ sub zip {
     return @results;
 }
 
-sub cross {
-    my $op = @_ == 2 ? 'infix:,' : shift;
-    my ($lhs, $rhs) = @_;
+sub crosswith {
+    my ($op, $lhs, $rhs) = @_;
     my ($a, $b, @results);
 
     $lhs = [$lhs] if ref $lhs ne 'ARRAY';
@@ -209,28 +217,84 @@ sub hyper {
     my ($op, $lhs, $rhs, %args) = @_;
 
     if (@_ == 2) {
-        return map { applyop($op, $_) } @$lhs
-            if ref $lhs eq 'ARRAY';
-        return map { $_ => applyop($op, $lhs->{$_}) } keys %$lhs
-            if ref $lhs eq 'HASH';
-        return applyop($op, $$lhs)
-            if ref $lhs eq 'SCALAR';
+        return map {
+            ref eq 'ARRAY' ? [ hyper($op, $_) ] :
+            ref eq 'HASH'  ? { hyper($op, $_) } :
+                             applyop($op, $_)
+        } @$lhs if ref $lhs eq 'ARRAY';
+
+        return map {
+            $_ => ref eq 'ARRAY' ? [ hyper($op, $_) ] :
+                  ref eq 'HASH'  ? { hyper($op, $_) } :
+                                   applyop($op, $lhs->{$_})
+        } keys %$lhs if ref $lhs eq 'HASH';
+
+        return applyop($op, $$lhs) if ref $lhs eq 'SCALAR';
         return applyop($op, $lhs);
     }
 
     my $dwim_left  = $args{dwim_left}  || $args{dwim};
     my $dwim_right = $args{dwim_right} || $args{dwim};
-    my ($length, @results);
 
+    if (ref $lhs eq 'HASH' && ref $rhs eq 'HASH') {
+        my %results;
+        my @keys = do {
+            if ($dwim_left && $dwim_right) { # intersection
+                grep { exists $rhs->{$_} } keys %$lhs;
+            }
+            elsif ($dwim_left) {
+                keys %$rhs;
+            }
+            elsif ($dwim_right) {
+                keys %$lhs;
+            }
+            else { # union
+                uniq keys %$lhs, keys %$rhs;
+            }
+        };
+
+        for my $key (@keys) {
+            $results{$key} = do {
+                if ( exists $lhs->{$key} && exists $rhs->{$key} ) {
+                    applyop( $op, $lhs->{$key}, $rhs->{$key} );
+                }
+                else {
+                    exists $ops{$op}{res}[1] ? $ops{$op}{res}[1] :
+                    exists $lhs->{$key}      ? $lhs->{$key}      :
+                                               $rhs->{$key}      ;
+                }
+            };
+        }
+
+        return %results;
+    }
+    elsif (ref $lhs eq 'HASH') {
+        die "Sorry, structures on both sides of non-dwimmy hyper() are not of same shape:\n"
+            . "    left:  HASH\n"
+            . "    right: " . ref($rhs) . "\n"
+            unless $dwim_right;
+
+        return map { $_ => applyop( $op, $lhs->{$_}, $rhs ) } keys %$lhs;
+    }
+    elsif (ref $rhs eq 'HASH') {
+        die "Sorry, structures on both sides of non-dwimmy hyper() are not of same shape:\n"
+            . "    left: " . ref($rhs) . "\n"
+            . "    right:  HASH\n"
+            unless $dwim_left;
+
+        return map { $_ => applyop( $op, $lhs, $rhs->{$_} ) } keys %$rhs;
+    }
+
+    my $length;
     $lhs = [$lhs] if ref $lhs ne 'ARRAY';
     $rhs = [$rhs] if ref $rhs ne 'ARRAY';
 
     if (!$dwim_left && !$dwim_right) {
-        if (@$lhs != @$rhs) {
-            die "Sorry, arrayrefs passed to non-dwimmy hyper() are not of same length:\n"
-                . "    left:  " . @$lhs . " elements\n"
-                . "    right: " . @$rhs . " elements\n";
-        }
+        die "Sorry, arrayrefs passed to non-dwimmy hyper() are not of same length:\n"
+            . "    left:  " . @$lhs . " elements\n"
+            . "    right: " . @$rhs . " elements\n"
+            if @$lhs != @$rhs;
+
         $length = @$lhs;
     }
     elsif (!$dwim_left) {
@@ -243,6 +307,7 @@ sub hyper {
         $length = @$lhs > @$rhs ? @$lhs : @$rhs;
     }
 
+    my @results;
     my $lhs_index = 0;
     my $rhs_index = 0;
     for (1 .. $length) {
@@ -264,10 +329,10 @@ sub applyop {
     ($op, $type) = _get_op_info($op);
 
     return unless $op;
-    return $ops{$op}->( @_[1, 2] )
+    return $ops{$op}{sub}->( @_[1, 2] )
         if $type eq 'infix'
         || $type eq 'postcircumfix';
-    return $ops{$op}->( $_[1] );
+    return $ops{$op}{sub}->( $_[1] );
 }
 
 sub reverseop {
@@ -286,12 +351,8 @@ sub _get_op_info {
         $op   = "infix:$op";
     }
 
-    my $trait = $chainops{$op} ? 'chain' :
-                $rightops{$op} ? 'right' :
-                                 ''      ;
-
     return unless exists $ops{$op};
-    return $op, $type, $trait;
+    return $op, $type;
 }
 
 1;
@@ -304,7 +365,7 @@ Operator::Util - A selection of array and hash functions that extend operators
 
 =head1 VERSION
 
-This document describes Operator::Util version 0.02.
+This document describes Operator::Util version 0.03.
 
 =head1 SYNOPSIS
 
@@ -331,11 +392,11 @@ meta-operators in Perl 5.
 
 The terms "operator string" or "opstring" are used to describe a string that
 represents an operator, such as the string C<'+'> for the addition operator or
-the string C<'.'> for the concatenation operator.  Except where noted,
-opstrings default to binary infix operators and the short form may be used,
-e.g., C<'*'> instead of C<'infix:*'>.  All other operator types (prefix,
-postfix, circumfix, and postcircumfix) must have the type prepended in the
-opstrings, e.g., C<prefix:++> and C<postcircumfix:{}>.
+the string C<'.'> for the concatenation operator.  Opstrings default to binary
+infix operators and the short form may be used, e.g., C<'*'> instead of
+C<'infix:*'>.  All other operator types (prefix, postfix, circumfix, and
+postcircumfix) must have the type prepended in the opstrings, e.g.,
+C<prefix:++> and C<postcircumfix:{}>.
 
 When a list is passed as an argument for any of the functions, it must be
 either an array reference or a scalar value that will be used as a
@@ -420,6 +481,7 @@ Operators with zero-element arrayrefs return the following values:
     ~~    # 1    (also for 1 arg)
     &     # -1   (from ^0, the 2's complement in arbitrary precision)
     |     # 0
+    ^     # 0
     &&    # 1
     ||    # 0
     //    # 0
@@ -454,22 +516,20 @@ list of lists, you can use a "triangular comma":
 
 =over 4
 
-=item zip OPSTRING, LIST1, LIST2
+=item zipwith OPSTRING, LIST1, LIST2
 
 =item zip LIST1, LIST2
 
-C<zipwith> is an alias for C<zip>.
-
-The C<zip> function may be passed any infix opstring.  It applies the operator
+The C<zipwith> function may be passed any infix opstring.  It applies the operator
 across all groupings of its list elements.
 
 The string concatenating form is:
 
-    zip('.', ['a','b'], [1,2])  # ('a1', 'b2')
+    zipwith('.', ['a','b'], [1,2])  # ('a1', 'b2')
 
 The list concatenating form when used like this:
 
-    zip(',', ['a','b'], [1,2], ['x','y'])
+    zipwith(',', ['a','b'], [1,2], ['x','y'])
 
 produces
 
@@ -486,15 +546,15 @@ also produces
 
 Any non-mutating infix operator may be used.
 
-    zip('*', [1,2], [3,4])  # (3, 8)
+    zipwith('*', [1,2], [3,4])  # (3, 8)
 
 All assignment operators are considered mutating.
 
-If the underlying operator is non-associating, so is the cross operator,
-except for basic comparison operators since a chaining workaround is provided:
+If the underlying operator is non-associating, so is C<zipwith>, except for
+basic comparison operators since a chaining workaround is provided:
 
-    zip('cmp', \@a, \@b, \@c)  # ILLEGAL
-    zip('eq', \@a, \@b, \@c)   # ok
+    zipwith('cmp', \@a, \@b, \@c)  # ILLEGAL
+    zipwith('eq', \@a, \@b, \@c)   # ok
 
 The underlying operator is always applied with its own associativity, just as
 the corresponding C<reduce> operator would do.
@@ -517,22 +577,20 @@ produces:
 
 =over 4
 
-=item cross OPSTRING, LIST1, LIST2
+=item crosswith OPSTRING, LIST1, LIST2
 
 =item cross LIST1, LIST2
 
-C<crosswith> is an alias for C<cross>.
-
-The C<cross> function may be passed any infix opstring.  It applies the
+The C<crosswith> function may be passed any infix opstring.  It applies the
 operator across all groupings of its list elements.
 
 The string concatenating form is:
 
-    cross('.', ['a','b'], [1,2])  # ('a1', 'a2', 'b1', 'b2')
+    crosswith('.', ['a','b'], [1,2])  # ('a1', 'a2', 'b1', 'b2')
 
 The list concatenating form when used like this:
 
-    cross(',', ['a','b'], [1,2], ['x','y'])
+    crosswith(',', ['a','b'], [1,2], ['x','y'])
 
 produces
 
@@ -552,15 +610,15 @@ an opstring as the first argument will use C<,> by default:
 
 Any non-mutating infix operator may be used.
 
-    cross('*', [1,2], [3,4])  # (3, 4, 6, 8)
+    crosswith('*', [1,2], [3,4])  # (3, 4, 6, 8)
 
 All assignment operators are considered mutating.
 
-If the underlying operator is non-associating, so is the cross operator,
-except for basic comparison operators since a chaining workaround is provided:
+If the underlying operator is non-associating, so is C<crosswith>, except for
+basic comparison operators since a chaining workaround is provided:
 
-    cross('cmp', \@a, \@b, \@c)  # ILLEGAL
-    cross('eq', \@a, \@b, \@c)   # ok
+    crosswith('cmp', \@a, \@b, \@c)  # ILLEGAL
+    crosswith('eq', \@a, \@b, \@c)   # ok
 
 The underlying operator is always applied with its own associativity, just as
 the corresponding C<reduce> operator would do.
@@ -719,6 +777,17 @@ same set of keys as the original hash.
 
 =back
 
+=head2 Flat list vs. "list of lists"
+
+The optional named-argument C<flat> can be passed to any of the above
+functions.  It defaults to C<1>, which causes the function to return a flat
+list.  When set to C<0>, it causes the return value from each operator to be
+stored in an array ref, resulting in a "list of lists" being returned from the
+function.
+
+    zip([1..3], ['a'..'c'])           # 1, 'a', 2, 'b', 3, 'c'
+    zip([1..3], ['a'..'c'], flat=>0)  # [1, 'a'], [2, 'b'], [3, 'c']
+
 =head2 Other utils
 
 =over 4
@@ -727,66 +796,47 @@ same set of keys as the original hash.
 
 =item applyop OPSTRING, OPERAND
 
-If three arguments are provided to C<applyop>, apply the binary operator
-OPSTRING to the operands OPERAND1 and OPERAND2.  If two arguments are
-provided, apply the unary operator OPSTRING to the operand OPERAND.  The unary
-form defaults to using prefix operators, so 'prefix:' may be omitted, e.g.,
-C<'++'> instead of C<'prefix:++'>;
+Apply the operator OPSTRING to the operands OPERAND1 and OPERAND2.  If an
+unary opstring is provided, only the first operand will be used.
 
-    applyop '.', 'foo', 'bar'  # foobar
-    applyop '++', 5            # 6
+    applyop('.', 'foo', 'bar')  # foobar
+    applyop('prefix:++', 5)     # 6
 
 =item reverseop OPSTRING, OPERAND1, OPERAND2
 
 C<reverseop> provides the same functionality as C<applyop> except that
 OPERAND1 and OPERAND2 are reversed.
 
-    reverseop '.', 'foo', 'bar'  # barfoo
+    reverseop('.', 'foo', 'bar')  # barfoo
 
 If an unary opstring is used, C<reverseop> has the same functionality as
 C<applyop>.
 
 =back
 
-The optional named-argument C<flat> can be passed to C<reduce>, C<zip>,
-C<cross>, and C<hyper>.  It defaults to C<1>, which causes the function to
-return a flat list.  When set to C<0>, it causes the return value from each
-operator to be stored in an array ref, resulting in a "list of lists" being
-returned from the function.
-
-    zip [1..3], ['a'..'c']             # 1, 'a', 2, 'b', 3, 'c'
-    zip [1..3], ['a'..'c'], flat => 0  # [1, 'a'], [2, 'b'], [3, 'c']
-
 =head1 TODO
 
 =over
 
-=item * Allow more than two arrayrefs with C<zip>, C<cross>, and C<hyper>
+=item * Allow more than two arrayrefs with C<zipwith>, C<crosswith>, and
+C<hyper>
 
-=item * Support default operator with C<zip> and C<cross>
-
-=item * Support multi-dimensional distribution with C<hyper>
-
-=item * Support hashes with C<hyper>
+=item * Support multi-dimensional binary operator distribution with C<hyper>
 
 =item * Support the C<flat =E<gt> 0> option
-
-=item * Support chaining C<reduce>
-
-=item * Add special cases for zero- and one-element arrays with C<reduce>
 
 =item * Add C<warn>ings on errors instead of simply C<return>ing
 
 =item * Add named unary operators such as C<uc> and C<lc>
 
-=item * Support meta-operator literals such as C<Z> and C<X>
+=item * Support meta-operator literals such as C<Z> and C<X> in C<applyop>
+
+=item * Add C<evalop> for C<eval>ing strings including meta-operator literals
 
 =item * Should the first argument optionally be a subroutine ref instead of an
 operator string?
 
 =item * Should the C<flat =E<gt> 0> option be changed to C<lol =E<gt> 1>?
-
-=item * Convert tests to L<TestML>
 
 =back
 
@@ -803,15 +853,13 @@ are arrays instead of array refs:
     pairwise { $a + $b }, @array1, @array2  # List::MoreUtils
     zip '+', \@array1, \@array2             # Operator::Util
 
-=item * C<mesh> a.k.a. L<List::MoreUtils/zip> is similar to C<zip> when using
-the default operator C<','> except that the arguments are arrays instead of
-array refs:
+=item * C<mesh> a.k.a. L<List::MoreUtils/zip> is similar to C<zip> except that
+the arguments are arrays instead of array refs:
 
     mesh @array1, @array2   # List::MoreUtils
     zip \@array1, \@array2  # Operator::Util
 
 =item * L<Set::CrossProduct> is an object-oriented alternative to C<cross>
-when using the default operator C<,>
 
 =item * The "Meta operators" section of Synopsis 3: Perl 6 Operators
 (L<http://perlcabal.org/syn/S03.html#Meta_operators>) is the inspiration for
