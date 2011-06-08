@@ -4,8 +4,10 @@ INSTALL
 lib/Operator/Util.pm
 LICENSE
 MANIFEST			This list of files
+META.json
 META.yml
 README
+t/00-load.t
 t/cross.t
 t/hyper.t
 t/reduce.t

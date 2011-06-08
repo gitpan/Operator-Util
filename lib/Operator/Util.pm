@@ -6,7 +6,7 @@ use warnings;
 use parent 'Exporter';
 use List::MoreUtils qw( uniq );
 
-our $VERSION   = '0.03';
+our $VERSION   = '0.04';
 our @EXPORT_OK = qw(
     reduce  reducewith
     zip     zipwith
@@ -365,7 +365,7 @@ Operator::Util - A selection of array and hash functions that extend operators
 
 =head1 VERSION
 
-This document describes Operator::Util version 0.03.
+This document describes Operator::Util version 0.04.
 
 =head1 SYNOPSIS
 
@@ -377,15 +377,11 @@ This document describes Operator::Util version 0.03.
         applyop reverseop
     );
 
-=head1 WARNING
-
-This is a B<pre-alpha> release of Operator::Util.  Not all features described
-in this document are complete.  Please see the L</TODO> list for details.  The
-interface and functionality may change in the future based on user feedback.
-Please make suggestions by creating an issue at
-L<http://github.com/patch/operator-util-pm5/issues>.
-
 =head1 DESCRIPTION
+
+Warning: This is an early release of Operator::Util.  Not all features
+described in this document are complete.  Please see the L</TODO> list for
+details.
 
 A pragmatic approach at providing the functionality of many of Perl 6's
 meta-operators in Perl 5.

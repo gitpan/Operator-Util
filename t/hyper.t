@@ -1,6 +1,8 @@
-use Test::More tests => 167;
-
-use ok 'Operator::Util', qw( hyper );
+#!perl
+use strict;
+use warnings;
+use Test::More tests => 166;
+use Operator::Util qw( hyper );
 
 # binary infix
 my @r;
@@ -302,8 +304,8 @@ TODO: {
     is $r{c},          3, 'hash - correct result from >>.abs';
 }
 
-TODO: {
-    local $TODO = 'hyper distribution NYI';
+SKIP: {
+    skip 'hyper distribution NYI', 29;
     my @a = (1, { a => 2, b => 3 }, 4);
     my @b = qw<a b c>;
     my @c = ('z', { a => 'y', b => 'x' }, 'w');
