@@ -35,7 +35,7 @@
    "provides" : {
       "Operator::Util" : {
          "file" : "lib/Operator/Util.pm",
-         "version" : "0.04"
+         "version" : "0.05"
       }
    },
    "release_status" : "stable",
@@ -52,5 +52,5 @@
          "url" : "git://github.com/patch/operator-util-pm5.git"
       }
    },
-   "version" : "0.04"
+   "version" : "0.05"
 }

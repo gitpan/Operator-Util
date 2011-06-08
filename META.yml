@@ -16,7 +16,7 @@ name: Operator-Util
 provides:
   Operator::Util:
     file: lib/Operator/Util.pm
-    version: 0.04
+    version: 0.05
 requires:
   List::MoreUtils: 0.09
   parent: 0
@@ -26,4 +26,4 @@ resources:
   homepage: http://github.com/patch/operator-util-pm5
   license: http://dev.perl.org/licenses/
   repository: git://github.com/patch/operator-util-pm5.git
-version: 0.04
+version: 0.05
